@@ -133,11 +133,7 @@ where
             // Block the execution of asynchronous operations on the current thread,
             // and yield the IO operation
             task::block_in_place(move || {
-                TK_TEST_RUNTIME.block_on(async move {
-                    task::spawn_blocking(move || {
-                        db.get_ref(key)
-                    }).await.unwrap()
-                })
+                db.get_ref(key)
             })
         } else {
             self.database.get_ref(key)
@@ -202,10 +198,6 @@ where
         }
     }
 
-    async fn executor_execute(executor: Arc<RwLock<PartitionExecutor<Arc<CacheDB<DB>>>>>) {
-        executor.write().unwrap().execute();
-    }
-
     pub fn parallel_execute(&mut self) {
         for partition_id in 0..10 {
             self.executors.push(Arc::new(RwLock::new(PartitionExecutor::new(partition_id, self.state.clone()))));
@@ -214,7 +206,10 @@ where
         TK_TEST_RUNTIME.block_on(async {
             let mut tasks = vec![];
             for executor in &self.executors {
-                tasks.push(TK_TEST_RUNTIME.spawn(Self::executor_execute(executor.clone())));
+                let executor = executor.clone();
+                tasks.push(TK_TEST_RUNTIME.spawn(async move {
+                    executor.write().unwrap().execute();
+                }));
             }
             futures::future::join_all(tasks).await;
         });

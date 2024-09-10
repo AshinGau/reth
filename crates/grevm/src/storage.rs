@@ -8,7 +8,7 @@ use reth_primitives::{Address, U256};
 use reth_revm::{CacheState, TransitionState};
 use reth_revm::db::BundleState;
 
-use crate::{GREVM_RUNTIME, LocationAndType};
+use crate::LocationAndType;
 
 pub struct CacheDB<DB> {
     pub coinbase: Address,
@@ -85,11 +85,7 @@ where
         if self.should_yield {
             let db = self.database.clone();
             tokio::task::block_in_place(move || {
-                GREVM_RUNTIME.block_on(async move {
-                    tokio::task::spawn_blocking(move || {
-                        db.basic_ref(address)
-                    }).await.unwrap()
-                })
+                db.basic_ref(address)
             })
         } else {
             self.database.basic_ref(address)
