@@ -83,19 +83,11 @@ struct CacheDB<DB> {
 
 impl<DB> CacheDB<DB> {
     fn new_yield(database: DB) -> Self {
-        Self {
-            database: Arc::new(database),
-            cache: Default::default(),
-            should_yield: true,
-        }
+        Self { database: Arc::new(database), cache: Default::default(), should_yield: true }
     }
 
     fn new(database: DB) -> Self {
-        Self {
-            database: Arc::new(database),
-            cache: Default::default(),
-            should_yield: false,
-        }
+        Self { database: Arc::new(database), cache: Default::default(), should_yield: false }
     }
 }
 
@@ -132,9 +124,7 @@ where
             let db = self.database.clone();
             // Block the execution of asynchronous operations on the current thread,
             // and yield the IO operation
-            task::block_in_place(move || {
-                db.get_ref(key)
-            })
+            task::block_in_place(move || db.get_ref(key))
         } else {
             self.database.get_ref(key)
         }
@@ -152,10 +142,7 @@ where
     DB::Error: Send + Sync,
 {
     pub fn new(partition_id: usize, db: DB) -> Self {
-        Self {
-            partition_id,
-            db: CacheDB::new(db),
-        }
+        Self { partition_id, db: CacheDB::new(db) }
     }
 
     pub fn execute(&mut self) {
@@ -185,22 +172,19 @@ where
     DB::Error: Send + Sync,
 {
     pub fn new(db: DB) -> Self {
-        Self {
-            state: Arc::new(CacheDB::new(db)),
-            executors: Default::default(),
-        }
+        Self { state: Arc::new(CacheDB::new(db)), executors: Default::default() }
     }
 
     pub fn new_yield(db: DB) -> Self {
-        Self {
-            state: Arc::new(CacheDB::new_yield(db)),
-            executors: Default::default(),
-        }
+        Self { state: Arc::new(CacheDB::new_yield(db)), executors: Default::default() }
     }
 
     pub fn parallel_execute(&mut self) {
         for partition_id in 0..10 {
-            self.executors.push(Arc::new(RwLock::new(PartitionExecutor::new(partition_id, self.state.clone()))));
+            self.executors.push(Arc::new(RwLock::new(PartitionExecutor::new(
+                partition_id,
+                self.state.clone(),
+            ))));
         }
 
         TK_TEST_RUNTIME.block_on(async {
@@ -217,7 +201,6 @@ where
     }
 }
 
-
 fn execute(should_yield: bool) {
     let mut data: HashMap<i32, i32> = HashMap::new();
     for i in 0..100 {
@@ -232,11 +215,7 @@ where
     DB: DatabaseRef + Send + Sync + 'static,
     DB::Error: Send + Sync,
 {
-    let mut scheduler = if should_yield {
-        Scheduler::new_yield(db)
-    } else {
-        Scheduler::new(db)
-    };
+    let mut scheduler = if should_yield { Scheduler::new_yield(db) } else { Scheduler::new(db) };
     scheduler.parallel_execute();
 }
 
