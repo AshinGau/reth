@@ -293,11 +293,6 @@ impl<DB> PartitionDB<DB> {
         let mut write_set = HashSet::new();
         for (address, account) in changes {
             if account.is_selfdestructed() {
-                // Only contract code can be selfdestructed
-                // TODO(gravity_nekomoto): Write test to check if this is correct.
-                // Should we use the code_hash from the `account.info` or the code_hash from the
-                // existing account in the `self.cache`?
-                assert!(!account.info.is_empty_code_hash());
                 write_set.insert(LocationAndType::Code(account.info.code_hash()));
                 // When a contract account is destroyed, its remaining balance is sent to a
                 // designated address, and the account’s balance becomes invalid.
