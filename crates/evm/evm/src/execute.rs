@@ -11,6 +11,7 @@ use alloy_evm::{
 };
 use alloy_primitives::B256;
 use core::fmt::Debug;
+use std::time::Instant;
 pub use reth_execution_errors::{
     BlockExecutionError, BlockValidationError, InternalBlockExecutionError,
 };
@@ -439,9 +440,12 @@ where
 
         // calculate the state root
         let hashed_state = state.hashed_post_state(&db.bundle_state);
+        let start = Instant::now();
         let (state_root, trie_updates) = state
             .state_root_with_updates(hashed_state.clone())
             .map_err(BlockExecutionError::other)?;
+        let elapsed = start.elapsed();
+        println!("debug merkle: build payload, block_size={}, merk time: {}ms", self.transactions.len(), elapsed.as_millis());
 
         let (transactions, senders) =
             self.transactions.into_iter().map(|tx| tx.into_parts()).unzip();

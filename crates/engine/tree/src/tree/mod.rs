@@ -2298,10 +2298,12 @@ where
 
         let mut maybe_state_root = None;
 
+        let start = Instant::now();
         if run_parallel_state_root {
             // if we new payload extends the current canonical change we attempt to use the
             // background task or try to compute it in parallel
             if use_state_root_task {
+                println!("debug merkle: sparse trie");
                 debug!(target: "engine::tree", block=?block_num_hash, "Using sparse trie state root algorithm");
                 match handle.state_root() {
                     Ok(StateRootComputeOutcome { state_root, trie_updates }) => {
@@ -2324,6 +2326,7 @@ where
                     }
                 }
             } else {
+                println!("debug merkle: parallel trie");
                 debug!(target: "engine::tree", block=?block_num_hash, "Using parallel state root algorithm");
                 match self.compute_state_root_parallel(
                     persisting_kind,
@@ -2352,6 +2355,7 @@ where
         {
             maybe_state_root
         } else {
+            println!("debug merkle: hash builder trie");
             // fallback is to compute the state root regularly in sync
             if self.config.state_root_fallback() {
                 debug!(target: "engine::tree", block=?block_num_hash, "Using state root fallback for testing");
@@ -2364,7 +2368,8 @@ where
                 ensure_ok!(state_provider.state_root_with_updates(hashed_state.clone()));
             (root, updates, root_time.elapsed())
         };
-
+        let block_size = block.transaction_count();
+        println!("debug merkle: block validation, block_size={}, merkle time: {}ms", block_size, start.elapsed().as_millis());
         self.metrics.block_validation.record_state_root(&trie_output, root_elapsed.as_secs_f64());
         debug!(target: "engine::tree", ?root_elapsed, block=?block_num_hash, "Calculated state root");
 
