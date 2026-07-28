@@ -57,6 +57,20 @@ pub use alloy_evm::{
     *,
 };
 
+/// Database requirements for parallel block execution.
+///
+/// The database is moved into a synchronized adapter so grevm workers can share its reads.
+/// Cloneable errors are required because speculative workers can propagate the same database
+/// failure.
+pub trait ParallelDatabase: Database + revm::Database<Error: Clone> + Send + Debug {}
+
+impl<T> ParallelDatabase for T
+where
+    T: Database + revm::Database<Error: Clone> + Send + Debug,
+    <T as revm::Database>::Error: Error + Clone + Send + Sync + 'static,
+{
+}
+
 /// A complete configuration of EVM for Reth.
 ///
 /// This trait encapsulates complete configuration required for transaction execution and block
@@ -443,16 +457,16 @@ pub trait ConfigureEvm: Clone + Debug + Send + Sync + Unpin {
     /// let batch_output = executor.execute_batch(&blocks)?;
     /// ```
     #[auto_impl(keep_default_for(&, Arc))]
-    fn executor<DB: Database>(
+    fn executor<DB: ParallelDatabase>(
         &self,
         db: DB,
     ) -> impl Executor<DB, Primitives = Self::Primitives, Error = BlockExecutionError> {
         BasicBlockExecutor::new(self, db)
     }
 
-    /// Returns a new [`BasicBlockExecutor`].
+    /// Returns a new batch [`Executor`].
     #[auto_impl(keep_default_for(&, Arc))]
-    fn batch_executor<DB: Database>(
+    fn batch_executor<DB: ParallelDatabase>(
         &self,
         db: DB,
     ) -> impl Executor<DB, Primitives = Self::Primitives, Error = BlockExecutionError> {

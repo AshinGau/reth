@@ -273,7 +273,8 @@ where
         + StateWriter<Receipt = <E::Primitives as NodePrimitives>::Receipt>
         + StorageSettingsCache
         + StoragePath
-        + ChainSpecProvider<ChainSpec: EthereumHardforks>,
+        + ChainSpecProvider<ChainSpec: EthereumHardforks>
+        + Sync,
 {
     /// Return the id of the stage
     fn id(&self) -> StageId {

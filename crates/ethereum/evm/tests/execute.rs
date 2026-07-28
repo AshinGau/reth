@@ -763,6 +763,105 @@ fn block_gas_limit_error() {
 }
 
 #[test]
+fn invalid_transaction_is_not_skipped() {
+    let chain_spec = Arc::new(
+        ChainSpecBuilder::from(&*MAINNET)
+            .shanghai_activated()
+            .with_fork(EthereumHardfork::Dao, ForkCondition::Never)
+            .build(),
+    );
+    let sender_key_pair = generators::generate_key(&mut generators::rng());
+    let sender = public_key_to_address(sender_key_pair.public_key());
+    let mut db = CacheDB::new(EmptyDB::default());
+    db.insert_account_info(
+        sender,
+        AccountInfo { balance: U256::from(10 * ETH_TO_WEI), ..Default::default() },
+    );
+
+    let mut header = chain_spec.genesis_header().clone();
+    header.gas_limit = 2_000_000;
+    let gas_price = header.base_fee_per_gas.unwrap().into();
+    let transaction = |nonce| {
+        sign_tx_with_key_pair(
+            sender_key_pair,
+            Transaction::Legacy(TxLegacy {
+                chain_id: Some(chain_spec.chain.id()),
+                nonce,
+                gas_price,
+                gas_limit: 21_000,
+                to: TxKind::Call(address!("0000000000000000000000000000000000000001")),
+                value: U256::ZERO,
+                input: Bytes::new(),
+            }),
+        )
+    };
+
+    let mut transactions = Vec::with_capacity(64);
+    transactions.push(transaction(0));
+    transactions.push(transaction(0));
+    transactions.extend((1..63).map(transaction));
+
+    let block = Block { header, body: BlockBody { transactions, ..Default::default() } }
+        .try_into_recovered()
+        .unwrap();
+    let error = EthEvmConfig::new(chain_spec).batch_executor(db).execute_one(&block).unwrap_err();
+
+    assert!(matches!(error.as_validation(), Some(BlockValidationError::InvalidTx { .. })));
+}
+
+#[test]
+fn grevm_matches_sequential_execution() {
+    let chain_spec = Arc::new(
+        ChainSpecBuilder::from(&*MAINNET)
+            .shanghai_activated()
+            .with_fork(EthereumHardfork::Dao, ForkCondition::Never)
+            .build(),
+    );
+    let sender_key_pair = generators::generate_key(&mut generators::rng());
+    let sender = public_key_to_address(sender_key_pair.public_key());
+    let mut db = CacheDB::new(EmptyDB::default());
+    db.insert_account_info(
+        sender,
+        AccountInfo { balance: U256::from(10 * ETH_TO_WEI), ..Default::default() },
+    );
+
+    let mut header = chain_spec.genesis_header().clone();
+    header.gas_limit = 2_000_000;
+    let gas_price = header.base_fee_per_gas.unwrap().into();
+    let transactions = (0..64)
+        .map(|nonce| {
+            sign_tx_with_key_pair(
+                sender_key_pair,
+                Transaction::Legacy(TxLegacy {
+                    chain_id: Some(chain_spec.chain.id()),
+                    nonce,
+                    gas_price,
+                    gas_limit: 21_000,
+                    to: TxKind::Call(address!("0000000000000000000000000000000000001000")),
+                    value: U256::ZERO,
+                    input: Bytes::new(),
+                }),
+            )
+        })
+        .collect();
+    let block = Block { header, body: BlockBody { transactions, ..Default::default() } }
+        .try_into_recovered()
+        .unwrap();
+    let evm_config = EthEvmConfig::new(chain_spec);
+
+    let mut sequential_executor = BasicBlockExecutor::new(evm_config.clone(), db.clone());
+    let sequential_output = sequential_executor.execute_one(&block).unwrap();
+    let sequential_bundle = sequential_executor.into_state().take_bundle();
+
+    let mut grevm_executor = evm_config.batch_executor(db);
+    let grevm_output = grevm_executor.execute_one(&block).unwrap();
+    let grevm_bundle = grevm_executor.into_state().take_bundle();
+
+    assert_eq!(grevm_output, sequential_output);
+    assert_eq!(grevm_bundle, sequential_bundle);
+}
+
+#[test]
 fn test_balance_increment_not_duplicated() {
     let chain_spec = Arc::new(
         ChainSpecBuilder::from(&*MAINNET)

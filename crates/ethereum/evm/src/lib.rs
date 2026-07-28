@@ -21,15 +21,17 @@ use alloc::{borrow::Cow, sync::Arc};
 use alloy_consensus::Header;
 use alloy_evm::{
     eth::{EthBlockExecutionCtx, EthBlockExecutorFactory},
-    EthEvmFactory, FromRecoveredTx, FromTxWithEncoded,
+    EthEvmFactory,
 };
 use core::{convert::Infallible, fmt::Debug};
 use reth_chainspec::{ChainSpec, EthChainSpec, MAINNET};
-use reth_ethereum_primitives::{Block, EthPrimitives, TransactionSigned};
+use reth_ethereum_primitives::{Block, EthPrimitives};
 use reth_evm::{
     eth::NextEvmEnvAttributes, precompiles::PrecompilesMap, ConfigureEvm, EvmEnv, EvmFactory,
-    NextBlockEnvAttributes, TransactionEnvMut,
+    NextBlockEnvAttributes,
 };
+#[cfg(feature = "std")]
+use reth_evm::{execute::Executor, ParallelDatabase};
 use reth_primitives_traits::{SealedBlock, SealedHeader};
 use revm::{context::BlockEnv, primitives::hardfork::SpecId};
 
@@ -70,6 +72,11 @@ pub use build::EthBlockAssembler;
 
 mod receipt;
 pub use receipt::RethReceiptBuilder;
+
+#[cfg(feature = "std")]
+mod parallel_execute;
+#[cfg(feature = "std")]
+pub use parallel_execute::GrevmExecutor;
 
 #[cfg(feature = "test-utils")]
 mod test_utils;
@@ -127,9 +134,7 @@ impl<ChainSpec, EvmF> ConfigureEvm for EthEvmConfig<ChainSpec, EvmF>
 where
     ChainSpec: EthExecutorSpec + EthChainSpec<Header = Header> + Hardforks + 'static,
     EvmF: EvmFactory<
-            Tx: TransactionEnvMut
-                    + FromRecoveredTx<TransactionSigned>
-                    + FromTxWithEncoded<TransactionSigned>,
+            Tx = revm::context::TxEnv,
             Spec = SpecId,
             BlockEnv = BlockEnv,
             Precompiles = PrecompilesMap,
@@ -214,6 +219,24 @@ where
             slot_number: attributes.slot_number,
         })
     }
+
+    #[cfg(feature = "std")]
+    fn executor<DB: ParallelDatabase>(
+        &self,
+        db: DB,
+    ) -> impl Executor<DB, Primitives = Self::Primitives, Error = reth_evm::execute::BlockExecutionError>
+    {
+        GrevmExecutor::new(self.clone(), db)
+    }
+
+    #[cfg(feature = "std")]
+    fn batch_executor<DB: ParallelDatabase>(
+        &self,
+        db: DB,
+    ) -> impl Executor<DB, Primitives = Self::Primitives, Error = reth_evm::execute::BlockExecutionError>
+    {
+        GrevmExecutor::new(self.clone(), db)
+    }
 }
 
 #[cfg(feature = "std")]
@@ -221,9 +244,7 @@ impl<ChainSpec, EvmF> ConfigureEngineEvm<ExecutionData> for EthEvmConfig<ChainSp
 where
     ChainSpec: EthExecutorSpec + EthChainSpec<Header = Header> + Hardforks + 'static,
     EvmF: EvmFactory<
-            Tx: TransactionEnvMut
-                    + FromRecoveredTx<TransactionSigned>
-                    + FromTxWithEncoded<TransactionSigned>,
+            Tx = revm::context::TxEnv,
             Spec = SpecId,
             BlockEnv = BlockEnv,
             Precompiles = PrecompilesMap,

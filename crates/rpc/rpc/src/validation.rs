@@ -21,7 +21,10 @@ use reth_consensus::{Consensus, FullConsensus};
 use reth_consensus_common::validation::MAX_RLP_BLOCK_SIZE;
 use reth_engine_primitives::PayloadValidator;
 use reth_errors::{BlockExecutionError, ConsensusError, ProviderError};
-use reth_evm::{execute::Executor, ConfigureEvm};
+use reth_evm::{
+    execute::{BasicBlockExecutor, Executor},
+    ConfigureEvm,
+};
 use reth_execution_types::BlockExecutionOutput;
 use reth_metrics::{
     metrics,
@@ -181,7 +184,7 @@ where
         let mut request_cache = self.cached_reads(parent_header_hash).await;
 
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
-        let executor = self.evm_config.batch_executor(cached_db);
+        let executor = BasicBlockExecutor::new(&self.evm_config, cached_db);
 
         let mut accessed_blacklisted = None;
         let output = executor.execute_with_state_closure(&block, |state| {

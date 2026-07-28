@@ -12,7 +12,7 @@ use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_util::cancellation::CancellationToken;
 use reth_consensus::FullConsensus;
-use reth_evm::{execute::Executor, ConfigureEvm};
+use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_primitives_traits::{format_gas_throughput, Account, BlockBody, GotExpected};
 use reth_provider::{
     BlockNumReader, BlockReader, ChainSpecProvider, DatabaseProviderFactory, ReceiptProvider,
@@ -168,7 +168,8 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec + Hardforks + EthereumHardforks>
                     }
                     let chunk_end = (chunk_start + blocks_per_chunk).min(max_block);
 
-                    let mut executor = evm_config.batch_executor(db_at(chunk_start - 1));
+                    let mut executor =
+                        BasicBlockExecutor::new(&evm_config, db_at(chunk_start - 1));
                     let mut executor_created = Instant::now();
 
                     'blocks: for block in chunk_start..chunk_end {
@@ -185,7 +186,7 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec + Hardforks + EthereumHardforks>
                             Err(err) => {
                                 if skip_invalid_blocks {
                                     executor =
-                                        evm_config.batch_executor(db_at(block.number()));
+                                        BasicBlockExecutor::new(&evm_config, db_at(block.number()));
                                     let _ =
                                         info_tx.send((block, eyre::Report::new(err)));
                                     continue
@@ -243,8 +244,10 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec + Hardforks + EthereumHardforks>
 
                                         error!(number=?block.number(), ?mismatch, "Gas usage mismatch");
                                         if skip_invalid_blocks {
-                                            executor = evm_config
-                                                .batch_executor(db_at(block.number()));
+                                            executor = BasicBlockExecutor::new(
+                                                &evm_config,
+                                                db_at(block.number()),
+                                            );
                                             let _ = info_tx.send((block, err));
                                             continue 'blocks;
                                         }
@@ -266,7 +269,7 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec + Hardforks + EthereumHardforks>
                             let last_block = block.number();
                             let old_executor = std::mem::replace(
                                 &mut executor,
-                                evm_config.batch_executor(db_at(last_block)),
+                                BasicBlockExecutor::new(&evm_config, db_at(last_block)),
                             );
                             let bundle = old_executor.into_state().take_bundle();
                             verify_bundle_against_changesets(

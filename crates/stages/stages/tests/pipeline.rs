@@ -14,7 +14,7 @@ use reth_downloaders::{
     headers::reverse_headers::ReverseHeadersDownloaderBuilder,
 };
 use reth_ethereum_primitives::{Block, BlockBody, Transaction};
-use reth_evm::{execute::Executor, ConfigureEvm};
+use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_network_p2p::{
     bodies::downloader::BodyDownloader,
@@ -339,7 +339,7 @@ async fn run_pipeline_forward_and_unwind(
         let output = {
             let state_provider = provider.latest();
             let db = StateProviderDatabase::new(&*state_provider);
-            let executor = evm_config.batch_executor(db);
+            let executor = BasicBlockExecutor::new(&evm_config, db);
             executor.execute(&block_with_senders)?
         };
 

@@ -28,6 +28,11 @@ alloy-evm.workspace = true
 alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
 
+# Misc
+alloy-eip7928 = { workspace = true, optional = true }
+grevm = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+
 [dev-dependencies]
 reth-testing-utils.workspace = true
 reth-evm = { workspace = true, features = ["test-utils"] }
@@ -37,6 +42,9 @@ alloy-genesis.workspace = true
 [features]
 default = ["std"]
 std = [
+    "dep:alloy-eip7928",
+    "dep:grevm",
+    "dep:parking_lot",
     "alloy-consensus/std",
     "alloy-eips/std",
     "alloy-genesis/std",
@@ -52,6 +60,7 @@ std = [
     "reth-ethereum-primitives/std",
     "alloy-rpc-types-engine/std",
     "reth-storage-errors/std",
+    "alloy-eip7928?/std",
 ]
 test-utils = [
     "std",
@@ -59,4 +68,5 @@ test-utils = [
     "reth-ethereum-primitives/test-utils",
     "reth-evm/test-utils",
     "reth-primitives-traits/test-utils",
+    "grevm?/test-utils",
 ]

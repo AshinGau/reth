@@ -11,7 +11,10 @@ use reth_chain_state::{
     PersistedBlockSubscriptions,
 };
 use reth_errors::RethResult;
-use reth_evm::{execute::Executor, ConfigureEvm};
+use reth_evm::{
+    execute::{BasicBlockExecutor, Executor},
+    ConfigureEvm,
+};
 use reth_execution_types::ExecutionOutcome;
 use reth_primitives_traits::{NodePrimitives, SealedHeader};
 use reth_rpc_api::RethApiServer;
@@ -175,11 +178,11 @@ where
             blocks.push(block);
         }
 
-        let outcome = self.evm_config().executor(db).execute_batch(&blocks).map_err(
-            |e: reth_evm::execute::BlockExecutionError| {
+        let outcome = BasicBlockExecutor::new(self.evm_config(), db)
+            .execute_batch(&blocks)
+            .map_err(|e: reth_evm::execute::BlockExecutionError| {
                 EthApiError::Internal(reth_errors::RethError::Other(e.into()))
-            },
-        )?;
+            })?;
 
         Ok(Some(outcome))
     }

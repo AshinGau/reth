@@ -432,6 +432,7 @@ reth-trie-sparse = { path = "crates/trie/sparse", default-features = false }
 reth-zstd-compressors = { version = "0.4.1", default-features = false }
 
 # revm
+grevm = { git = "https://github.com/Galxe/grevm", rev = "35237ed460bf9c506462c9120175462e1b0d36c0" }
 revm = { version = "40.0.3", default-features = false }
 revm-bytecode = { version = "11.0.0", default-features = false }
 revm-database = { version = "15.0.0", default-features = false }
